@@ -9,6 +9,9 @@ from .customize_sampler import SamplerBlockShuffleByLen
 from tqdm import tqdm
 __author__ = "Junyan Wu"
 __email__ = "wujy298@mail2.sysu.edu.cn"
+import random
+from .musan import Musan
+from .rir import RIRReverberation
 
 class ASVspoof2019PS(Dataset):
     def __init__(self, path ,part='train', rso = 20):
@@ -22,10 +25,21 @@ class ASVspoof2019PS(Dataset):
         self.rso=rso
         for k in self.protocol.keys():
             self.filelist.append(k)
+            # print('self.protocol[k]', k, self.protocol[k])
             self.gt_dict[k]=np.array(self.label2gt(self.protocol[k]),dtype=float)
             scale_label = self.lab_in_scale(self.protocol[k])
             self.labels.append(scale_label)
         self.rso=rso
+
+        self.DA = {}
+        self.DA['MUS'] = Musan(
+                    'musan_data'
+                )
+        self.category = ['noise','speech','music']
+        self.DA['RIR'] = RIRReverberation(
+                    'RIR_data'
+                )
+        
     def __getitem__(self, idx):
         filename = self.filelist[idx]
         label=self.protocol[filename]
@@ -33,16 +47,24 @@ class ASVspoof2019PS(Dataset):
         featureTensor = self.torchaudio_load(filepath)
         featureTensor = featureTensor.float()
         label = np.array(label,dtype=int)
+        utt_label = 0 if 0 in label else 1
         label = self.lab_in_scale(label)
         label = torch.tensor(label, dtype=torch.float32)
         featureTensor = torch.squeeze(featureTensor,dim=0)
-        return featureTensor, filename, label
+        return featureTensor, filename, label, utt_label
     
     def __len__(self):
         return len(self.filelist)
     
     def torchaudio_load(self,filepath):
         wave, sr = sf.read(filepath)
+        if self.part == 'train':
+            if 0.5 > random.random():
+                if random.randint(0, 1) == 0:
+                    category = random.choice(self.category)
+                    wave = self.DA['MUS'](wave, category)
+                else:
+                    wave = self.DA['RIR'](wave)
         # wave, sr = librosa.load(filepath)
         waveform = torch.Tensor(np.expand_dims(wave, axis=0))
         return waveform
@@ -249,7 +271,7 @@ def get_dataloader(batch_size,part,dn,rso):
     assert part in ['train', 'dev','test']
     if dn=="PS":
         part=part.replace("test","eval")
-        dst=ASVspoof2019PS(path="/data/wujy/audio/ps",part=part,rso=rso)######
+        dst=ASVspoof2019PS(path="/data/spk_corpora/PartialSpoof/database",part=part,rso=rso)######
     elif dn=='HAD':
         dst=HAD(path='/data/wujy/audio/HAD', part=part, rso=rso)####
     elif dn=='LAVDF':

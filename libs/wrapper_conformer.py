@@ -13,30 +13,32 @@ def train_one_epoch(train_dlr, model, loss_fun_pgMSE, loss_fun_crl, device, opti
     running_loss = 0
     num_total = 0.0
     step=0
-    for batch_x, filenames, batch_seg_label in tqdm(train_dlr,ncols=50):
+    weight = torch.FloatTensor([0.1, 0.9]).to(device)
+    loss_utt = nn.CrossEntropyLoss(weight=weight)
+    for batch_x, filenames, batch_seg_label, batch_utt_label in tqdm(train_dlr,ncols=50):
         if batch_x.shape[1]>max_len:
             continue
         optimizer.zero_grad()
-        batch_x, batch_seg_label = batch_x.to(device), batch_seg_label.to(device)
-        seg_score, bd_score, emb,_ = model(batch_x)
+        batch_x, batch_seg_label, batch_utt_label = batch_x.to(device), batch_seg_label.to(device), batch_utt_label.to(device)
+        utt_logit, seg_score, emb = model(batch_x)
+        # print('utt_logit, seg_score, emb', utt_logit.shape, seg_score.shape, emb.shape)
         # output scores and labels alignmnent
-        seg_score, seg_target,seg_score_list,seg_target_list = prepare_segcon_target_ali(batch_seg_label, seg_score,rso)
-        seg_target=torch.tensor(seg_target, device=seg_score.device).view(-1).type(torch.long)
+        seg_score, seg_target, seg_score_list, seg_target_list = prepare_segcon_target_ali(batch_seg_label, seg_score,rso)
+        seg_target = torch.tensor(seg_target, device=seg_score.device).view(-1).type(torch.long)
         # get boundary labels
-        bd_target=seg2bd_label(_seg2bd_label(seg_target)[0],_seg2bd_label(seg_target)[1])
+        bd_target = seg2bd_label(_seg2bd_label(seg_target)[0],_seg2bd_label(seg_target)[1])
         # boundary scores and labels alignmnent
-        bd_target=torch.tensor(bd_target, device=seg_score.device).view(-1).type(torch.long)
-        bd_score, bd_target,_,_ = prepare_segcon_target_ali(bd_target.reshape(len(filenames),-1), bd_score, rso)
+        bd_target = torch.tensor(bd_target, device=seg_score.device).view(-1).type(torch.long)
         # compute loss
-        fdl_loss=loss_fun_pgMSE(seg_score, seg_target)
-        crl_loss=loss_fun_crl(emb, batch_seg_label)
-        fbl_loss=loss_fun_pgMSE(bd_score, bd_target)
-        batch_loss =  fdl_loss + v1 * crl_loss+ v2 * fbl_loss
+        utt_loss = loss_utt(utt_logit, batch_utt_label)
+        fdl_loss = loss_fun_pgMSE(seg_score, seg_target)
+        crl_loss = loss_fun_crl(emb, batch_seg_label)
+        batch_loss = utt_loss + fdl_loss + v1 * crl_loss
         batch_size = batch_x.size(0)
         running_loss += (batch_loss.item() * batch_size)
         batch_loss.backward()
         optimizer.step()
-        num_total+=batch_size
+        num_total += batch_size
     running_loss /= num_total
     return running_loss
         
@@ -48,14 +50,14 @@ def test_one_epoch(infer_dlr, gt_dict, model, rso, device):
         seg_score_dict={}
         seg_tar_dict={}
         cp_dict={}
-        for batch_x, filenames, batch_seg_label in tqdm(infer_dlr,ncols=50):
+        for batch_x, filenames, batch_seg_label, batch_utt_label in tqdm(infer_dlr,ncols=50):
             if batch_x.shape[1]>max_len:
                 for idx,fn in enumerate(np.array(filenames)):
                     cp_dict[fn]=np.array([])
                 continue
             batch_x, batch_seg_label = batch_x.to(device), batch_seg_label.to(device)
-            seg_score,_, _,_ = model(batch_x) 
-            seg_score, seg_target,seg_score_list,seg_target_list = prepare_segcon_target_ali(batch_seg_label, seg_score,rso)
+            utt_logit, seg_score ,_ = model(batch_x) 
+            seg_score, seg_target, seg_score_list, seg_target_list = prepare_segcon_target_ali(batch_seg_label, seg_score,rso)
             seg_score_np=np.array([ss.data.cpu().numpy() for ss in seg_score_list])
             cp_list=[segscore2proposal(seg_score_np[idx],cp_fun=proposal_func,rso=rso)[1] for idx in range(len(batch_x))]
             for idx,fn in enumerate(np.array(filenames)):
