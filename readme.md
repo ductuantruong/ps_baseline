@@ -1,6 +1,4 @@
 ## 1. Setup
-
-
 It is recommended that you install Python 3.8 or higher. We followed the installation setup in this project [SSL_Anti-spoofing](https://github.com/TakHemlata/SSL_Anti-spoofing), which is presented as follows:
 
 
@@ -38,16 +36,5 @@ bash run.sh
 ```
 
 
-## Citation
-Kindly cite our work if you find it useful.
-
-
-```
-@article{wu2024cfprf,
-  title={Coarse-to-Fine Proposal Refinement Framework for Audio Temporal Forgery Detection and Localization},
-  author={Wu, Junyan and Lu, Wei and Luo, Xiangyang and Yang, Rui and Wang, Qian and Cao, Xiaochun},
-  journal={arXiv preprint arXiv:2407.16554},
-  year={2024},
-  doi={10.1145/3664647.3680585},
-}
-```
+## Acknowledge
+Our work is built upon the [CFPRF](https://github.com/ItzJuny/CFPRF) codebase.
