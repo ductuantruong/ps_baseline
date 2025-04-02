@@ -32,13 +32,15 @@ class ASVspoof2019PS(Dataset):
         self.rso=rso
 
         self.DA = {}
-        self.DA['MUS'] = Musan(
-                    'musan_data'
-                )
+        if self.part == 'train':
+            self.DA['MUS'] = Musan(
+                        'musan_data'
+                    )
         self.category = ['noise','speech','music']
-        self.DA['RIR'] = RIRReverberation(
-                    'RIR_data'
-                )
+        if self.part == 'train':
+            self.DA['RIR'] = RIRReverberation(
+                        'RIR_data'
+                    )
         
     def __getitem__(self, idx):
         filename = self.filelist[idx]
@@ -267,11 +269,11 @@ class LAVDF(HAD):
 
 
 ########CHANGE########PATH##########
-def get_dataloader(batch_size,part,dn,rso):
+def get_dataloader(batch_size,part,dn,rso,data_path="/data/spk_corpora/PartialSpoof/database"):
     assert part in ['train', 'dev','test']
     if dn=="PS":
         part=part.replace("test","eval")
-        dst=ASVspoof2019PS(path="/data/spk_corpora/PartialSpoof/database",part=part,rso=rso)######
+        dst=ASVspoof2019PS(path=data_path,part=part,rso=rso)######
     elif dn=='HAD':
         dst=HAD(path='/data/wujy/audio/HAD', part=part, rso=rso)####
     elif dn=='LAVDF':

@@ -58,11 +58,12 @@ def seg_performance_excel(seg_score_dict,seg_tar_dict):
     return savecontent
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('python evaluate_CFPRF.py --dn HAD/PS/LAVDF')
+    parser = argparse.ArgumentParser('python evaluate.py')
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--save_path', type=str, default="./result/") # ['HAD','PS','LAVDF']
-    parser.add_argument('--dn', type=str, default="HAD") # ['HAD','PS','LAVDF']
-    parser.add_argument('--exp_name', type=str)
+    parser.add_argument('--dn', type=str, default="PS") # ['HAD','PS','LAVDF']
+    parser.add_argument('--data_path', type=str)
+    parser.add_argument('--ckpt_path', type=str)
     parser.add_argument('--seql', type=int, default=1070)
     parser.add_argument('--rso', type=int, default=20)
     parser.add_argument('--glayer', type=int, default=1) 
@@ -71,7 +72,7 @@ if __name__ == '__main__':
     set_random_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     """loading dataset"""
-    test_gt_dict, test_dlr=get_dataloader(batch_size=1,part="test",dn=args.dn,rso=args.rso)
+    test_gt_dict, test_dlr=get_dataloader(batch_size=1,part="test",dn=args.dn,rso=args.rso,data_path=args.data_path)
     """loading FDN model"""
     conformer_model = FrameConformer(seq_len=args.seql, gmlp_layers=args.glayer).to(device)
     """ 
@@ -83,23 +84,17 @@ if __name__ == '__main__':
     ├── 2PRN_LAVDF.pth
     ├── 2PRN_PS.pth
     """
-    conformer_checkpoint="./checkpoints/%s/%s/FDN/best_model_stage1.pth"%(args.exp_name,args.dn)
-    conformer_model.load_state_dict(torch.load(conformer_checkpoint))
-    """loading PRN model"""
+    conformer_checkpoint="%s"%(args.ckpt_path)
+    conformer_model.load_state_dict(torch.load(conformer_checkpoint, map_location=device))
     """makedir"""
-    args.save_path += args.exp_name
     dict_save_path=os.path.join(args.save_path,'dict/%s_'%(args.dn))
     csv_save_path=os.path.join(args.save_path,'pd/%s_'%(args.dn))
     os.makedirs(os.path.dirname(dict_save_path),exist_ok=True)
     os.makedirs(os.path.dirname(csv_save_path),exist_ok=True)
     ###########INFERENCE#############
-    if args.eval:
-        seg_score_dict, seg_tar_dict = Inference(test_dlr, conformer_model,  args.rso, device)
-        writenpy(dict_save_path+'seg_tar_dict.npy',seg_tar_dict)
-        writenpy(dict_save_path+'seg_score_dict.npy',seg_score_dict)
-    else:
-        seg_score_dict=readnpy(dict_save_path+'seg_score_dict.npy',seg_score_dict)
-        seg_tar_dict=readnpy(dict_save_path+'seg_tar_dict.npy',seg_tar_dict)
+    seg_score_dict, seg_tar_dict = Inference(test_dlr, conformer_model,  args.rso, device)
+    writenpy(dict_save_path+'seg_tar_dict.npy',seg_tar_dict)
+    writenpy(dict_save_path+'seg_score_dict.npy',seg_score_dict)
     ###########PFD#############
     savecontent0=seg_performance_excel(seg_score_dict,seg_tar_dict)
     savecontent0.to_csv(csv_save_path+'PFD_results.csv')

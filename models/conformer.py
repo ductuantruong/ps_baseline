@@ -5,7 +5,7 @@ import torch.nn.init as torch_init
 import torch.nn as nn
 import os
 import fairseq
-from models.conformer_tcm import ConformerBlock
+from conformer import ConformerBlock
 from torch.nn.modules.transformer import _get_clones
 __author__ = "Junyan Wu"
 __email__ = "wujy298@mail2.sysu.edu.cn"
@@ -14,7 +14,7 @@ __email__ = "wujy298@mail2.sysu.edu.cn"
 class ASRModel(nn.Module):
     def __init__(self):
         super(ASRModel, self).__init__()
-        cp_path = os.path.join('./pretrained_models/xlsr2_300m.pt') 
+        cp_path = os.path.join('xlsr2_300m.pt') 
         model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([cp_path])
         self.model = model[0]
 
@@ -252,7 +252,7 @@ class FrameConformer(nn.Module):
         x = x.squeeze(dim=1)
         x = torch.stack([torch.vstack((self.class_token, x[i])) for i in range(len(x))])#[bs,1+tiempo,emb_size]
         for layer in self.encoder:
-            x, _ = layer(x) #[bs,1+tiempo,emb_size]
+            x = layer(x) #[bs,1+tiempo,emb_size]
         cls_embedding=x[:, 0, :] #[bs, emb_size]
         frm_embedding=x[:, 1:, :] #[bs, emb_size]
         frm_embedding=x #[bs, emb_size]
