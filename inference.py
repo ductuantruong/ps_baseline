@@ -12,6 +12,24 @@ __email__ = "wujy298@mail2.sysu.edu.cn"
 ############EVAL CFPRF################
 import soundfile as sf
     
+def print_spoof_timestamps(pred, rso=20):
+    start = None
+    for i, value in enumerate(pred):
+        if value == 0:
+            if start is None:
+                start = i * rso
+        else:
+            if start is not None:
+                end = i * rso
+                print(f"{start}ms - {end}ms")
+                start = None
+
+    # Check if the list ends with 0
+    if start is not None:
+        end = len(pred) * rso
+        print(f"{start}ms - {end}ms")
+
+
 def Inference(file_path, conformer_model,  device):
     print("++++++++++++++++++inference++++++++++++++++++")
     conformer_model.eval()
@@ -23,8 +41,15 @@ def Inference(file_path, conformer_model,  device):
         batch_size = batch_x.size(0)
         # inference FDN
         _, seg_score, _ = conformer_model(batch_x) 
-    return torch.squeeze(seg_score)
-
+        seg_score = torch.squeeze(seg_score)
+        pred = (seg_score[:, 1] > args.threshold).long().tolist()
+        print("Frame-level prediction output of {}:".format(args.data_path))
+        print(pred)
+        print("Duration of audio: {}s".format(round(wave.shape[-1]/sr, 2)))
+        print("Percentage Spoof audio: {}%".format(round((1-sum(pred)/len(pred))*100, 2)))
+        if sum(pred) != len(pred):
+            print("Spoof audio segments:")
+            print_spoof_timestamps(pred)
 
 
 if __name__ == '__main__':
@@ -61,10 +86,6 @@ if __name__ == '__main__':
     os.makedirs(os.path.dirname(dict_save_path),exist_ok=True)
     os.makedirs(os.path.dirname(csv_save_path),exist_ok=True)
     ###########INFERENCE#############
-    seg_score = Inference(args.data_path, conformer_model, device)
-    print('seg_score', seg_score, seg_score.shape)
     print("Frame-level prediction output (1 means bonafide frame, 0 means spoof frame):")
-    print("Frame-level prediction output {}".format(args.data_path))
-    pred = (seg_score[:, 1] > args.threshold).long()
-    print(pred)
+    seg_score = Inference(args.data_path, conformer_model, device)
     ###########DECISION#############
