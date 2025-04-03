@@ -20,7 +20,7 @@ cd ../..
 ## Pretrained Model
 The pretrained model XLSR can be found at [link](https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr2_300m.pt).
 
-We have uploaded pretrained models of our experiments. You can download pretrained models from TBA. 
+We have uploaded pretrained models of our experiments. You can download pretrained models from [link](https://entuedu-my.sharepoint.com/:u:/g/personal/zhlim_staff_main_ntu_edu_sg/Ectv8XEBK1BAgZJy1fXcziQBmMDLoML7UxYflIKQIKNJpA?e=EzkzhA). 
 
 ### 3. Run Inference
 Inference the pretrained model with single wav file:
