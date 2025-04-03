@@ -27,6 +27,6 @@ Inference the pretrained model with single wav file:
 ```
 python inference.py --data_path path/to/wav_file  --ckpt_path path/to/model_ckpt
 ```
-
+Some audio samples can be found at `audio_samples/`
 ## Acknowledge
 Our work is built upon the [CFPRF](https://github.com/ItzJuny/CFPRF) codebase.
