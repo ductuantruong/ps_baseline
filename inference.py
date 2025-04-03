@@ -14,6 +14,7 @@ import soundfile as sf
     
 def print_spoof_timestamps(pred, rso=20):
     start = None
+    txt_output = []
     for i, value in enumerate(pred):
         if value == 0:
             if start is None:
@@ -21,18 +22,20 @@ def print_spoof_timestamps(pred, rso=20):
         else:
             if start is not None:
                 end = i * rso
-                print(f"{start}ms - {end}ms")
+                txt_output.append(f"{start}ms - {end}ms")
                 start = None
 
     # Check if the list ends with 0
     if start is not None:
         end = len(pred) * rso
-        print(f"{start}ms - {end}ms")
+        txt_output.append(f"{start}ms - {end}ms")
+    return txt_output
 
 
 def Inference(file_path, conformer_model,  device):
     print("++++++++++++++++++inference++++++++++++++++++")
     conformer_model.eval()
+    text_list = []
     with torch.no_grad():
         wave, sr = sf.read(file_path)
         batch_x = torch.Tensor(np.expand_dims(wave, axis=0))
@@ -43,13 +46,15 @@ def Inference(file_path, conformer_model,  device):
         _, seg_score, _ = conformer_model(batch_x) 
         seg_score = torch.squeeze(seg_score)
         pred = (seg_score[:, 1] > args.threshold).long().tolist()
-        print("Frame-level prediction output of {}:".format(args.data_path))
-        print(pred)
-        print("Duration of audio: {}s".format(round(wave.shape[-1]/sr, 2)))
-        print("Percentage Spoof audio: {}%".format(round((1-sum(pred)/len(pred))*100, 2)))
+        text_list.append("Duration of audio: {}s".format(round(wave.shape[-1]/sr, 2)))
+        text_list.append("Percentage Spoof audio: {}%".format(round((1-sum(pred)/len(pred))*100, 2)))
         if sum(pred) != len(pred):
-            print("Spoof audio segments:")
-            print_spoof_timestamps(pred)
+            text_list.append("Spoof audio segments:")
+            seg_text = print_spoof_timestamps(pred)
+            text_list += seg_text
+        text_list.append("Frame-level prediction output (1 means bonafide frame, 0 means spoof frame):")
+        text_list.append(str(pred))
+    return text_list
 
 
 if __name__ == '__main__':
@@ -86,6 +91,10 @@ if __name__ == '__main__':
     os.makedirs(os.path.dirname(dict_save_path),exist_ok=True)
     os.makedirs(os.path.dirname(csv_save_path),exist_ok=True)
     ###########INFERENCE#############
-    print("Frame-level prediction output (1 means bonafide frame, 0 means spoof frame):")
-    seg_score = Inference(args.data_path, conformer_model, device)
-    ###########DECISION#############
+    output_text = Inference(args.data_path, conformer_model, device)
+    txt_file_name= args.data_path.split('/')[-1].split('.')[0] + '.txt'
+    with open(os.path.join(args.save_path, txt_file_name), 'w+') as fh:
+        fh.write('\n'.join(output_text) + '\n')
+    print("Output file is saved at {}".format(os.path.join(args.save_path, txt_file_name)))
+    fh.close()
+
