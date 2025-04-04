@@ -239,10 +239,10 @@ class FrameConformer(nn.Module):
                                                    ), 2)
         self.selu = nn.SELU(inplace=True)
         self.seg_amlp = aMLP(d_model=128, d_ffn=-2, seq_len=seq_len, gmlp_layers = gmlp_layers, batch_first=True)
-        self.utt_fc = nn.Linear(128,2)
+        #self.utt_fc = nn.Linear(128,2)
         self.drop = nn.Dropout(0.5, inplace=True)
         self.seg_fc = nn.Linear(128,2)
-        self.class_token = nn.Parameter(torch.rand(1, 128))
+        #self.class_token = nn.Parameter(torch.rand(1, 128))
     def forward(self, x):
         x = self.asr(x)
         x = self.LL(x)
@@ -250,14 +250,14 @@ class FrameConformer(nn.Module):
         x = self.first_bn(x)
         x = self.selu(x)
         x = x.squeeze(dim=1)
-        x = torch.stack([torch.vstack((self.class_token, x[i])) for i in range(len(x))])#[bs,1+tiempo,emb_size]
+        #x = torch.stack([torch.vstack((self.class_token, x[i])) for i in range(len(x))])#[bs,1+tiempo,emb_size]
         for layer in self.encoder:
             x = layer(x) #[bs,1+tiempo,emb_size]
-        cls_embedding=x[:, 0, :] #[bs, emb_size]
-        frm_embedding=x[:, 1:, :] #[bs, emb_size]
+        #cls_embedding=x[:, 0, :] #[bs, emb_size]
+        #frm_embedding=x[:, 1:, :] #[bs, emb_size]
         frm_embedding=x #[bs, emb_size]
-        bin_out = self.utt_fc(cls_embedding) #[bs,2]
+        #bin_out = self.utt_fc(cls_embedding) #[bs,2]
         frm_out = self.seg_amlp(frm_embedding) #[bs,2]
         frm_out = self.drop(frm_out)
         seg_scores = self.seg_fc(frm_out)
-        return bin_out, seg_scores, frm_out
+        return None, seg_scores, frm_out
