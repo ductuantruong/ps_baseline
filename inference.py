@@ -34,10 +34,11 @@ def print_spoof_timestamps(pred, rso=20):
     return txt_output
 
 
-def Inference(file_path, conformer_model, score_type_ouput, device):
+def Inference(file_path, conformer_model, score_type_ouput, consolidate_output, device):
     print("++++++++++++++++++inference++++++++++++++++++")
     conformer_model.eval()
     text_list = []
+    filename = os.path.basename(file_path)
     with torch.no_grad():
         file_type = file_path.split('.')[-1]
         if file_type != 'mp3':
@@ -68,6 +69,23 @@ def Inference(file_path, conformer_model, score_type_ouput, device):
             text_list += seg_text
         text_list.append("Frame-level prediction output (1 means bonafide frame, 0 means spoof frame):")
         text_list.append(str(pred))
+        
+        # saving to the JSON output
+        if consolidate_output:
+        # read existing json file
+            if os.path.exists(consolidate_output):
+                with open(consolidate_output, 'r') as jf:
+                    try:
+                        output_dict = json.load(jf)
+                    except json.JSONDecodeError:
+                        output_dict = {}
+        		
+        	# write a new json file
+            else:
+                output_dict={}
+            output_dict[filename] = pred
+            with open(consolidate_output, 'w') as aw:
+	            json.dump(output_dict, aw, indent=4)
     return text_list
 
 
@@ -79,11 +97,14 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', type=str)
     parser.add_argument('--ckpt_path', type=str)
     parser.add_argument('--threshold', type=float, default=0.9)
+    parser.add_argument('--consolidate_output', type=str, default="./result/consolidate_output.json")
     parser.add_argument('--score_type_ouput', action='store_true', default=False)
     parser.add_argument('--seql', type=int, default=1070)
     parser.add_argument('--rso', type=int, default=20)
     parser.add_argument('--glayer', type=int, default=1) 
-    parser.add_argument('--eval', action='store_true', default=True) 
+    parser.add_argument('--eval', action='store_true', default=True)
+
+     
     args = parser.parse_args()
     set_random_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -101,12 +122,14 @@ if __name__ == '__main__':
     conformer_checkpoint="%s"%(args.ckpt_path)
     conformer_model.load_state_dict(torch.load(conformer_checkpoint, map_location=device))
     """makedir"""
-    dict_save_path=os.path.join(args.save_path,'dict/%s_'%(args.dn))
-    csv_save_path=os.path.join(args.save_path,'pd/%s_'%(args.dn))
-    os.makedirs(os.path.dirname(dict_save_path),exist_ok=True)
-    os.makedirs(os.path.dirname(csv_save_path),exist_ok=True)
+    #dict_save_path=os.path.join(args.save_path,'dict/%s_'%(args.dn))
+    #csv_save_path=os.path.join(args.save_path,'pd/%s_'%(args.dn))
+    #os.makedirs(os.path.dirname(dict_save_path),exist_ok=True)
+    #os.makedirs(os.path.dirname(csv_save_path),exist_ok=True)
+
+    os.makedirs(args.save_path, exist_ok=True)
     ###########INFERENCE#############
-    output_text = Inference(args.data_path, conformer_model, args.score_type_ouput, device)
+    output_text = Inference(args.data_path, conformer_model, args.score_type_ouput, args.consolidate_output, device)
     txt_file_name= args.data_path.split('/')[-1].split('.')[0] + '.txt'
     with open(os.path.join(args.save_path, txt_file_name), 'w+') as fh:
         fh.write('\n'.join(output_text) + '\n')
