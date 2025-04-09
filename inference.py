@@ -1,4 +1,5 @@
 import torch,argparse
+import torch.nn.functional as F
 import numpy as np
 from libs.dataloader.data_io import get_dataloader
 from models.conformer import FrameConformer 
@@ -11,6 +12,7 @@ __author__ = "Junyan Wu"
 __email__ = "wujy298@mail2.sysu.edu.cn"
 ############EVAL CFPRF################
 import soundfile as sf
+import torchaudio
     
 def print_spoof_timestamps(pred, rso=20):
     start = None
@@ -32,20 +34,32 @@ def print_spoof_timestamps(pred, rso=20):
     return txt_output
 
 
-def Inference(file_path, conformer_model,  device):
+def Inference(file_path, conformer_model, score_type_ouput, device):
     print("++++++++++++++++++inference++++++++++++++++++")
     conformer_model.eval()
     text_list = []
     with torch.no_grad():
-        wave, sr = sf.read(file_path)
-        batch_x = torch.Tensor(np.expand_dims(wave, axis=0))
+        file_type = file_path.split('.')[-1]
+        if file_type != 'mp3':
+            wave, sr = sf.read(file_path)
+            batch_x = torch.Tensor(np.expand_dims(wave, axis=0))
+        else:
+            wave, sr = torchaudio.load(file_path)
+            batch_x = wave
+        
+        if sr != 16000:
+            batch_x = torchaudio.transforms.Resample(
+                orig_freq=sr, new_freq=16000)(batch_x)
 
         batch_x = batch_x.to(device)
         batch_size = batch_x.size(0)
         # inference FDN
         _, seg_score, _ = conformer_model(batch_x) 
         seg_score = torch.squeeze(seg_score)
-        pred = (seg_score[:, 1] > args.threshold).long().tolist()
+        if score_type_ouput:
+            pred = (seg_score[:, 1] > args.threshold).long().tolist()
+        else:
+            pred = F.softmax(seg_score, dim=-1)[:, 0].tolist()
         text_list.append("Duration of audio: {}s".format(round(wave.shape[-1]/sr, 2)))
         text_list.append("Percentage Spoof audio: {}%".format(round((1-sum(pred)/len(pred))*100, 2)))
         if sum(pred) != len(pred):
@@ -65,6 +79,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', type=str)
     parser.add_argument('--ckpt_path', type=str)
     parser.add_argument('--threshold', type=float, default=0.9)
+    parser.add_argument('--score_type_ouput', action='store_true', default=False)
     parser.add_argument('--seql', type=int, default=1070)
     parser.add_argument('--rso', type=int, default=20)
     parser.add_argument('--glayer', type=int, default=1) 
@@ -91,7 +106,7 @@ if __name__ == '__main__':
     os.makedirs(os.path.dirname(dict_save_path),exist_ok=True)
     os.makedirs(os.path.dirname(csv_save_path),exist_ok=True)
     ###########INFERENCE#############
-    output_text = Inference(args.data_path, conformer_model, device)
+    output_text = Inference(args.data_path, conformer_model, args.score_type_ouput, device)
     txt_file_name= args.data_path.split('/')[-1].split('.')[0] + '.txt'
     with open(os.path.join(args.save_path, txt_file_name), 'w+') as fh:
         fh.write('\n'.join(output_text) + '\n')
