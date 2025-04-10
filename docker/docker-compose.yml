@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  inference-monitor:
+    image: abxregistry.azurecr.io/ps_baseline:v1.2
+    volumes:
+      - ./input:/app/input
+      - ./output:/app/output
+      - ./ckpt:/app/ckpt
+    environment:
+      - CKPT_FILENAME=e17_devEER1.163_devmAP0.614.pth
+    command: /bin/bash -c "source activate ps_baseline && python monitor_input_directory.py"
+    restart: unless-stopped
+

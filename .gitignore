@@ -1,0 +1,15 @@
+#ignore folders
+SSL_Anti-spoofing/
+ckpt/
+input/*
+output/*
+libs/__pycache__/
+libs/dataloader/__pycache__/
+models/__pycache__/
+
+#keep folder
+!input/.gitkeep
+!output/.gitkeep
+
+#ignore files
+xlsr2_300m.pt
