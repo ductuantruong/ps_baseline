@@ -34,7 +34,7 @@ def print_spoof_timestamps(pred, rso=20):
     return txt_output
 
 
-def Inference(file_path, conformer_model, score_type_ouput, consolidate_output, device):
+def Inference(file_path, conformer_model, score_type_ouput, consolidate_output, device, base_rso, output_rso):
     print("++++++++++++++++++inference++++++++++++++++++")
     conformer_model.eval()
     text_list = []
@@ -60,14 +60,16 @@ def Inference(file_path, conformer_model, score_type_ouput, consolidate_output, 
         if score_type_ouput:
             pred = (seg_score[:, 1] > args.threshold).long().tolist()
         else:
-            pred = F.softmax(seg_score, dim=-1)[:, 0].tolist()
+            pred = F.softmax(seg_score, dim=-1)[:, 0]
+            pred = F.avg_pool1d(pred.unsqueeze(0).unsqueeze(0), kernel_size=output_rso//base_rso, stride=output_rso//base_rso, ceil_mode=True)
+            pred = pred.squeeze().tolist()
         text_list.append("Duration of audio: {}s".format(round(wave.shape[-1]/sr, 2)))
         text_list.append("Percentage Spoof audio: {}%".format(round((1-sum(pred)/len(pred))*100, 2)))
         if sum(pred) != len(pred):
             text_list.append("Spoof audio segments:")
             seg_text = print_spoof_timestamps(pred)
             text_list += seg_text
-        text_list.append("Frame-level prediction output (1 means bonafide frame, 0 means spoof frame):")
+        text_list.append("Frame-level (1 frame is {} ms) prediction output (1 means bonafide frame, 0 means spoof frame):".format(args.output_rso))
         text_list.append(str(pred))
         
         # saving to the JSON output
@@ -100,7 +102,8 @@ if __name__ == '__main__':
     parser.add_argument('--consolidate_output', type=str, default="./result/consolidate_output.json")
     parser.add_argument('--score_type_ouput', action='store_true', default=False)
     parser.add_argument('--seql', type=int, default=1070)
-    parser.add_argument('--rso', type=int, default=20)
+    parser.add_argument('--output_rso', type=int, default=1000)
+    parser.add_argument('--base_rso', type=int, default=20)
     parser.add_argument('--glayer', type=int, default=1) 
     parser.add_argument('--eval', action='store_true', default=True)
 
@@ -129,7 +132,7 @@ if __name__ == '__main__':
 
     os.makedirs(args.save_path, exist_ok=True)
     ###########INFERENCE#############
-    output_text = Inference(args.data_path, conformer_model, args.score_type_ouput, args.consolidate_output, device)
+    output_text = Inference(args.data_path, conformer_model, args.score_type_ouput, args.consolidate_output, device, args.base_rso, args.output_rso)
     txt_file_name= args.data_path.split('/')[-1].split('.')[0] + '.txt'
     with open(os.path.join(args.save_path, txt_file_name), 'w+') as fh:
         fh.write('\n'.join(output_text) + '\n')
