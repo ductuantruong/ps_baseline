@@ -7,6 +7,10 @@ from libs.tool import *
 import os
 from libs.startup_config import set_random_seed
 import warnings
+import soundfile as sf
+import torch.nn.functional as F
+import json
+
 warnings.filterwarnings("ignore")
 __author__ = "Junyan Wu"
 __email__ = "wujy298@mail2.sysu.edu.cn"
@@ -33,6 +37,86 @@ def print_spoof_timestamps(pred, rso=20):
         txt_output.append(f"{start}ms - {end}ms")
     return txt_output
 
+
+def Inference_mod(file_path, conformer_model, score_type_ouput, consolidate_output, device, base_rso, output_rso):
+    print("++++++++++++++++++inference++++++++++++++++++")
+    conformer_model.eval()
+    text_list = []
+    filename = os.path.basename(file_path)
+
+    with torch.no_grad():
+        file_type = file_path.split('.')[-1]
+        if file_type != 'mp3':
+            wave, sr = sf.read(file_path)
+            wave = np.expand_dims(wave, axis=0)  # [1, T]
+            wave = torch.Tensor(wave)
+        else:
+            wave, sr = torchaudio.load(file_path)
+
+        if sr != 16000:
+            wave = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000)(wave)
+
+        wave = wave.to(device)
+        total_samples = wave.shape[1]
+        sample_rate = 16000
+        chunk_samples = sample_rate * 4  # 4s chunk
+        pred_all = []
+
+        for start in range(0, total_samples, chunk_samples):
+            end = min(start + chunk_samples, total_samples)
+            chunk = wave[:, start:end]
+
+            # Zero pad if less than 4s
+            if chunk.shape[1] < chunk_samples:
+                padding = chunk_samples - chunk.shape[1]
+                chunk = torch.nn.functional.pad(chunk, (0, padding))
+
+            _, seg_score, _ = conformer_model(chunk)
+
+            seg_score = torch.squeeze(seg_score)
+
+            if score_type_ouput:
+                pred = (seg_score[:, 1] > args.threshold).long().tolist()
+            else:
+                pred = F.softmax(seg_score, dim=-1)[:, 0]
+                pred = F.avg_pool1d(
+                    pred.unsqueeze(0).unsqueeze(0),
+                    kernel_size=output_rso // base_rso,
+                    stride=output_rso // base_rso,
+                    ceil_mode=True
+                )
+                pred = pred.squeeze().tolist()
+
+            pred_all.extend(pred)
+
+        audio_duration = round(total_samples / sample_rate, 2)
+        text_list.append("Duration of audio: {}s".format(audio_duration))
+        text_list.append("Percentage Spoof audio: {}%".format(round((1 - sum(pred_all) / len(pred_all)) * 100, 2)))
+
+        if sum(pred_all) != len(pred_all):
+            text_list.append("Spoof audio segments:")
+            seg_text = print_spoof_timestamps(pred_all)
+            text_list += seg_text
+
+        text_list.append("Frame-level (1 frame is {} ms) prediction output (1 means bonafide frame, 0 means spoof frame):".format(args.output_rso))
+        text_list.append(str(pred_all))
+
+        # Save to JSON
+        if consolidate_output:
+            if os.path.exists(consolidate_output):
+                with open(consolidate_output, 'r') as jf:
+                    try:
+                        output_dict = json.load(jf)
+                    except json.JSONDecodeError:
+                        output_dict = {}
+            else:
+                output_dict = {}
+
+            output_dict[filename] = pred_all
+            with open(consolidate_output, 'w') as aw:
+                json.dump(output_dict, aw, indent=4)
+
+    return text_list
 
 def Inference(file_path, conformer_model, score_type_ouput, consolidate_output, device, base_rso, output_rso):
     print("++++++++++++++++++inference++++++++++++++++++")
@@ -132,7 +216,7 @@ if __name__ == '__main__':
 
     os.makedirs(args.save_path, exist_ok=True)
     ###########INFERENCE#############
-    output_text = Inference(args.data_path, conformer_model, args.score_type_ouput, args.consolidate_output, device, args.base_rso, args.output_rso)
+    output_text = Inference_mod(args.data_path, conformer_model, args.score_type_ouput, args.consolidate_output, device, args.base_rso, args.output_rso)
     txt_file_name= args.data_path.split('/')[-1].split('.')[0] + '.txt'
     with open(os.path.join(args.save_path, txt_file_name), 'w+') as fh:
         fh.write('\n'.join(output_text) + '\n')
