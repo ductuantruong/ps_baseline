@@ -22,6 +22,12 @@ The pretrained model XLSR can be found at [link](https://dl.fbaipublicfiles.com/
 
 We have uploaded pretrained models of our experiments. You can download pretrained models from [link](https://entuedu-my.sharepoint.com/:u:/g/personal/zhlim_staff_main_ntu_edu_sg/ESZCiJIcf_1GnbRa0frYKPoBUjt4EZfUgtaoLnZF61FpNw?e=P9MJFO). 
 
+### 2. Evaluate on test set
+Download wav files and labels of PartialSpoof test set: [wav_files](https://zenodo.org/records/5766198/files/database_eval.tar.gz?download=1), [labels](https://zenodo.org/records/5766198/files/database_segment_labels_v1.2.tar.gz?download=1). Put these folders inside you data directory.
+```
+python evaluate.py --data_path your_data_path --ckpt_path your_model_ckpt_path --eval
+```
+
 ### 3. Run Inference
 Inference the pretrained model with single wav file:
 ```
