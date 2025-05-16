@@ -10,9 +10,10 @@ import warnings
 import soundfile as sf
 import torch.nn.functional as F
 import json
+import math
 
 warnings.filterwarnings("ignore")
-__author__ = "Junyan Wu"
+__author__ = "Junyan Wu, Tuan, Zin"
 __email__ = "wujy298@mail2.sysu.edu.cn"
 ############EVAL CFPRF################
 import soundfile as sf
@@ -37,7 +38,6 @@ def print_spoof_timestamps(pred, rso=20):
         txt_output.append(f"{start}ms - {end}ms")
     return txt_output
 
-
 def Inference_mod(file_path, conformer_model, score_type_ouput, consolidate_output, device, base_rso, output_rso):
     print("++++++++++++++++++inference++++++++++++++++++")
     conformer_model.eval()
@@ -59,15 +59,19 @@ def Inference_mod(file_path, conformer_model, score_type_ouput, consolidate_outp
         wave = wave.to(device)
         total_samples = wave.shape[1]
         sample_rate = 16000
-        chunk_samples = sample_rate * 4  # 4s chunk
+        chunk_dur= 4
+        #chunk_samples = sample_rate * 4  # 4s chunk
+        chunk_samples = sample_rate * chunk_dur
         pred_all = []
+        last_remain_chunk=0
 
         for start in range(0, total_samples, chunk_samples):
             end = min(start + chunk_samples, total_samples)
             chunk = wave[:, start:end]
 
-            # Zero pad if less than 4s
+            # Zero pad if less than 4s, only happened once in the last chunk remaining chunk
             if chunk.shape[1] < chunk_samples:
+                last_remain_chunk=chunk.shape[1]
                 padding = chunk_samples - chunk.shape[1]
                 chunk = torch.nn.functional.pad(chunk, (0, padding))
 
@@ -91,6 +95,21 @@ def Inference_mod(file_path, conformer_model, score_type_ouput, consolidate_outp
 
         audio_duration = round(total_samples / sample_rate, 2)
         text_list.append("Duration of audio: {}s".format(audio_duration))
+        
+        # for the last non-4s segment, remove the padded prediction
+        if (last_remain_chunk/16000) != 0:
+
+            # calculate the negative index and remove padded pred
+            # get the actual audio duration in the remaining chunk
+            # if remaining duration is between 1.1 to 1.9s, get 2 prediction
+            
+            # - (4 - 2) = -2, 
+            # chunk size =4s, remaining audio sec=2s, 
+            # remove last 2 prob from pred_all
+            pad_out=-(chunk_dur-math.ceil(last_remain_chunk/16000))
+            # only for the negative index. audio of 3.1-3.4s means negative index=0. i.e. keep all 4 prod.
+            if pad_out!=0: 
+                pred_all=pred_all[0:pad_out]
         text_list.append("Percentage Spoof audio: {}%".format(round((1 - sum(pred_all) / len(pred_all)) * 100, 2)))
 
         if sum(pred_all) != len(pred_all):
@@ -216,6 +235,7 @@ if __name__ == '__main__':
 
     os.makedirs(args.save_path, exist_ok=True)
     ###########INFERENCE#############
+    print("Processing:", args.data_path)
     output_text = Inference_mod(args.data_path, conformer_model, args.score_type_ouput, args.consolidate_output, device, args.base_rso, args.output_rso)
     txt_file_name= args.data_path.split('/')[-1].split('.')[0] + '.txt'
     with open(os.path.join(args.save_path, txt_file_name), 'w+') as fh:
