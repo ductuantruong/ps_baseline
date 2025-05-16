@@ -43,7 +43,7 @@ def eval_PFD(seg_score_dict,seg_tar_dict):
     eer = np.mean((frr[min_index], far[min_index]))
     print("EER=%.2f%%"%(eer*100))
     EER_threshold=thresholds[min_index]
-    print("EER threshold=%.2f%"%(EER_threshold))
+    print("EER threshold=%.2f%%"%(EER_threshold))
     ACC_threshold=EER_threshold
     """---------Others----------"""
     pred_label_dict={}
